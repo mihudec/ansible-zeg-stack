@@ -1,0 +1,8 @@
+---
+  - hosts: docker-host1
+    roles:
+      #- install_docker
+      # - zabbix
+      # - grafana
+      # - portainer
+      - elk

@@ -1,0 +1,87 @@
+---
+- name: Create Grafana Network
+  docker_network:
+    name: "{{ networks[grafana.network].name }}"
+    attachable: true
+    enable_ipv6: false
+    state: present
+    ipam_config:
+      - subnet: "{{ networks[grafana.network].subnet }}"
+        gateway: "{{ networks[grafana.network].gateway }}"
+    driver_options:
+      com.docker.network.bridge.name: "{{ networks[grafana.network].name }}"
+
+- name: Firewall - Add grafana_network to Trusted Zone
+  firewalld:
+    interface: "{{ networks[grafana.network].name }}"
+    zone: trusted
+    state: enabled
+    permanent: true
+    immediate: yes
+  tags: 
+    - firewall
+
+- name: Create Grafana Volume Folder
+  file: 
+    path: "{{ grafana.data_path }}/grafana-storage"
+    state: directory
+    recurse: true
+
+- name: Create Grafana Volume
+  docker_volume:
+    name: "grafana-storage" 
+    driver: local
+    driver_options: 
+      type: none
+      device: "{{ grafana.data_path }}/grafana-storage"
+      o: bind
+    state: present 
+
+
+- name: "Set Grafana Container to {{ container_state }}"
+  docker_container:
+    name: "{{ grafana.name }}"
+    hostname: "{{ grafana.name }}"
+    image: "{{ grafana.image }}"
+    state: "{{ container_state }}"
+    env: "{{ grafana.environment }}"
+    volumes: "{{ grafana.volumes }}"
+    ports: "{{ grafana.ports }}"
+    purge_networks: true
+    networks:
+      - name: grafana_network
+      - name: zabbix_network
+
+- name: Check if Grafana is Up
+  uri:
+    url: "http://localhost:3000"
+  when: container_state == 'started'
+  register: uri_result
+  until: uri_result.status == 200
+  retries: 10
+  check_mode: no
+
+- name: Add MYSQL Permissions for Grafana
+  command: "docker exec {{ zabbix.db.name }} mysql --user='root' --password='{{ zabbix.db.mysql_root_password }}' -e \"{{ item }}\""
+  loop:
+    - "CREATE USER '{{ grafana.db_user }}'@'localhost' IDENTIFIED BY '{{ grafana.db_password }}';"
+    - "CREATE USER '{{ grafana.db_user }}'@'%' IDENTIFIED BY '{{ grafana.db_password }}';"
+    - "GRANT SELECT ON {{ zabbix.db.database }}.* TO '{{ grafana.db_user }}'@'localhost';"
+    - "GRANT SELECT ON {{ zabbix.db.database }}.* TO '{{ grafana.db_user }}'@'%';"
+    - "FLUSH PRIVILEGES;"
+  when:
+   - (firsttime is defined and (firsttime | bool | default(false)))
+
+- name: Create MYSQL Zabbix Datasource
+  grafana_datasource:
+    grafana_url: "http://localhost:{{ grafana_port }}"
+    grafana_user: admin
+    grafana_password: admin
+    ds_type: "mysql"
+    name: "Zabbix DB"
+    ds_url: "zabbix-db"
+    database: "{{ zabbix.db.database }}"
+    user: "{{ zabbix.db.db_user }}"
+    password: "{{ zabbix.db.db_password }}"
+  vars:
+    grafana_port: "{{ grafana.ports[0].split(':')[0] }}"

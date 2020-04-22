@@ -1,0 +1,146 @@
+---
+- name: Debug Volumes
+  debug:
+    var: zabbix_volumes
+
+- name: Create Zabbix Network
+  docker_network:
+    name: "{{ networks[zabbix.network].name }}"
+    attachable: true
+    enable_ipv6: false
+    state: present
+    ipam_config:
+      - subnet: "{{ networks[zabbix.network].subnet }}"
+        gateway: "{{ networks[zabbix.network].gateway }}"
+    driver_options:
+      com.docker.network.bridge.name: "{{ networks[zabbix.network].name }}"
+
+- name: Firewall - Add Zabbix Network to Trusted Zone
+  firewalld:
+    interface: "{{ networks[zabbix.network].name }}"
+    zone: trusted
+    state: enabled
+    permanent: true
+    immediate: yes
+  tags: 
+    - firewall
+
+- name: Create Volumes
+  include_tasks: volumes.yml
+  loop: 
+    - db
+    - server
+    - agent
+    - web
+    - shared
+  loop_control:
+    loop_var: volume_set
+
+- name: Set Zabbix Database state to {{ container_state }}
+  docker_container:
+    name: zabbix-db
+    hostname: zabbix-db
+    image: "{{ zabbix.db.image }}"
+    state: "{{ container_state }}"
+    volumes: "{{ zabbix_volumes.database }}"
+    env: "{{ zabbix_env.database }}"
+    purge_networks: yes
+    networks:
+      - name: "{{ zabbix.network }}"
+        aliases:
+          - mysql-server
+          - zabbix-database
+          - mysql-database
+    command: ["mysqld", "--character-set-server=utf8", "--collation-server=utf8_bin"]
+    restart_policy: "{{ container_restart_policy | default('unless-stopped') }}"    
+  tags: zabbix-db
+
+- name: Set zabbix-server state to {{ container_state }}
+  docker_container:
+    name: zabbix-server
+    image: "{{ zabbix.server.image }}"
+    state: "{{ container_state }}"
+    ulimits:
+      - nofile:20000:40000
+      - nproc:65535
+    memory: 512MB
+    ports: "{{ zabbix.server.ports }}"
+    volumes: "{{ zabbix_volumes.shared | union(zabbix_volumes.server) }}"
+    # links:
+    #   - zabbix-db:zabbix-db
+    #   #- zabbix-agent:zabbix-agent
+    env: "{{ zabbix_env.database | combine(zabbix_env.server) }}"
+    purge_networks: yes
+    networks:
+      - name: "{{ zabbix.network }}"
+        aliases:
+         - zabbix-server
+         - zabbix-server-mysql
+    restart_policy: "{{ container_restart_policy | default('unless-stopped') }}"         
+  tags: zabbix-server
+
+- name: Set zabbix-web state to {{ container_state }}
+  docker_container:
+    name: zabbix-web
+    image: "{{ zabbix.web.image }}"
+    state: "{{ container_state }}"
+    #memory: 512MB
+    ports: "{{ zabbix.web.ports }}"
+    volumes: "{{ zabbix_volumes.web }}"
+    # links:
+    #   - zabbix-db:zabbix-db
+    #   - zabbix-server:zabbix-server
+    env: "{{ zabbix_env.database | combine(zabbix_env.web) }}"
+    purge_networks: yes
+    networks:
+      - name: "{{ zabbix.network }}"
+        aliases:
+         - zabbix-web-nginx-mysql
+    restart_policy: "{{ container_restart_policy | default('unless-stopped') }}"         
+  tags: zabbix-web
+
+- name: Set zabbix-agent state to {{ container_state }}
+  docker_container:
+    name: zabbix-agent
+    image: "{{ zabbix.agent.image }}"
+    state: "{{ container_state }}"
+    ports: "{{ zabbix.agent.ports }}"
+    volumes: "{{ zabbix_volumes.shared | union(zabbix_volumes.agent) }}"
+    # links:
+    #   - zabbix-server:zabbix-server
+    env: "{{ zabbix_env.agent }}"
+    privileged: true
+    pid_mode: "host"
+    purge_networks: yes
+    networks:
+      - name: "{{ zabbix.network }}"
+        aliases:
+         - zabbix-agent
+         - zabbix-agent-passive
+    restart_policy: "{{ container_restart_policy | default('unless-stopped') }}"         
+  tags: zabbix-agent
+
+- name: Check if zabbix is up
+  uri:
+    url: "http://localhost"
+  when: container_state == 'started'
+  register: uri_result
+  until: uri_result.status == 200
+  retries: 10
+  check_mode: no
+
+- name: Set zabbix-agent Address
+  zabbix_host:
+    server_url: "http://localhost:80"
+    login_user: Admin
+    login_password: zabbix
+    host_name: "Zabbix server"
+    host_groups: "Zabbix servers"
+    interfaces:
+      - type: agent
+        dns: zabbix-agent
+        useip: 0
+        main: 1
+
+
+

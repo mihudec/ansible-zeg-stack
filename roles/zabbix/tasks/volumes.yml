@@ -1,0 +1,23 @@
+
+---
+- name: Create Zabbix {{ volume_set }} Volume Folders
+  file: 
+    path: "{{ zabbix.data_path }}/{{ item.name }}"
+    state: directory
+    recurse: true
+  loop: "{{ zabbix[volume_set].volumes }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Create Zabbix {{ volume_set }} Volumes
+  docker_volume:
+    name: "{{ item.name }}" 
+    driver: local
+    driver_options: 
+      type: none
+      device: "{{ zabbix.data_path }}/{{ item.name }}"
+      o: bind
+    state: present
+  loop: "{{ zabbix[volume_set].volumes }}"
+  loop_control:
+    label: "{{ item.name }}"

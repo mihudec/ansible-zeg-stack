@@ -1,0 +1,73 @@
+---
+- name: Create ElasticSearch Network
+  docker_network:
+    name: "{{ networks[elk.network].name }}"
+    attachable: true
+    enable_ipv6: false
+    state: present
+    ipam_config:
+      - subnet: "{{ networks[elk.network].subnet }}"
+        gateway: "{{ networks[elk.network].gateway }}"
+    driver_options:
+      com.docker.network.bridge.name: "{{ networks[elk.network].name }}"
+
+- name: Firewall - Add ElasticSearch Network to Trusted Zone
+  firewalld:
+    interface: "{{ networks[elk.network].name }}"
+    zone: trusted
+    state: enabled
+    permanent: true
+    immediate: yes
+  tags: 
+    - firewall
+
+- name: Set ElasticSearch to {{ container_state }}
+  docker_container:
+    name: "{{ elk.elasticsearch.name }}"
+    hostname: "{{ elk.elasticsearch.name }}"
+    image: "{{ elk.elasticsearch.image }}"
+    state: "{{ container_state }}"
+    volumes: "{{ elk_volumes.elasticsearch }}"
+    ulimits: "{{ elk.elasticsearch.ulimits }}"
+    memory: "{{ elk.elasticsearch.memory | default('1024M') }}"
+    env: "{{ elk_env.elasticsearch }}"
+    purge_networks: true
+    networks:
+      - name: "{{ elk.network }}"
+        aliases: elasticsearch
+    ports: "{{ elk.elasticsearch.ports }}"
+    restart_policy: unless-stopped
+  tags: elasticsearch
+
+- name: Bootstrap ElasticSearch Password
+  expect:
+    command: "docker exec -it {{ elk.elasticsearch.name }} elasticsearch-keystore add \"bootstrap.password\""
+    responses: 
+      (?i)overwrite: "y"
+      (?i)value: "1234Qwer"
+  tags: elasticsearch
+
+- name: Wait until ElasticSearch comes up
+  uri:
+    url: "http://localhost:{{ elk.elasticsearch.ports[0].split(':')[0] }}"
+  register: elasticsearch_uri_result
+  until: elasticsearch_uri_result == 200
+  retries: 10
+  check_mode: false
+
+- name: Set Kibana to {{ container_state }}
+  docker_container:
+    name: "{{ elk.kibana.name }}"
+    hostname: "{{ elk.kibana.name }}"
+    image: "{{ elk.kibana.image }}"
+    state: "{{ container_state }}"
+    volumes: "{{ elk_volumes.elasticsearch }}"
+    memory: "{{ elk.kibana.memory | default('1024M') }}"
+    env: "{{ elk_env.kibana }}"
+    purge_networks: true
+    networks:
+      - name: "{{ elk.network }}"
+        aliases: elasticsearch
+    ports: "{{ elk.kibana.ports }}"
+    restart_policy: unless-stopped
+  tags: kibana

@@ -1,0 +1,69 @@
+---
+zabbix_env:
+  database:
+    MYSQL_USER: "{{ zabbix.db.db_user }}"
+    MYSQL_PASSWORD: "{{ zabbix.db.db_password }}"
+    MYSQL_ROOT_PASSWORD: "{{ zabbix.db.mysql_root_password }}"
+    MYSQL_ALLOW_EMPTY_PASSWORD: "false"
+    MYSQL_DATABASE: "{{ zabbix.db.database }}"
+  server:
+    ZBX_ENABLE_SNMP_TRAPS: "false"
+    ZBX_JAVAGATEWAY_ENABLE: "false"
+    ZBX_STARTJAVAPOLLERS: "0"
+    TZ: "{{ zabbix.timezone }}"
+  web:
+    ZBX_SERVER_HOST: zabbix-server
+    ZBX_SERVER_NAME: "{{ zabbix.name }}"
+    TZ: "{{ zabbix.timezone }}"
+    PHP_TZ: "{{ zabbix.timezone }}"
+  agent:
+    ZBX_SERVER_HOST: zabbix-server
+    ZBX_PASSIVE_ALLOW: "true"
+    ZBX_ACTIVE_ALLOW: "false"
+    TZ: "{{ zabbix.timezone }}"
+
+
+zabbix_volumes:
+  database: |
+    [
+    {% for volume in zabbix.db.volumes %}
+      "{{ volume.name }}:{{ volume.mountpoint }}{% if volume.mode is defined %}:{{ volume.mode }}{% endif %}",
+    {% endfor %}
+    ]
+  server: |
+    [
+    {% for volume in zabbix.server.volumes %}
+      "{{ volume.name }}:{{ volume.mountpoint }}{% if volume.mode is defined %}:{{ volume.mode }}{% endif %}",
+    {% endfor %}
+    ]
+  server_old:
+    - "{{ zabbix.data_path }}/usr/lib/zabbix/alertscripts:/usr/lib/zabbix/alertscripts:ro"
+    - "{{ zabbix.data_path }}/usr/lib/zabbix/externalscripts:/usr/lib/zabbix/externalscripts:ro"
+    - "{{ zabbix.data_path }}/var/lib/zabbix/mibs:/var/lib/zabbix/mibs:ro"
+  agent: |
+    [
+    {% for volume in zabbix.agent.volumes %}
+      "{{ volume.name }}:{{ volume.mountpoint }}{% if volume.mode is defined %}:{{ volume.mode }}{% endif %}",
+    {% endfor %}
+    ]
+  agent_old:
+    - "{{ zabbix.data_path }}/etc/zabbix/zabbix_agentd.d:/etc/zabbix/zabbix_agentd.d:ro"
+  shared: |
+    [
+    {% for volume in zabbix.shared.volumes %}
+      "{{ volume.name }}:{{ volume.mountpoint }}{% if volume.mode is defined %}:{{ volume.mode }}{% endif %}",
+    {% endfor %}
+    ]
+  shared_old:
+    # zabbix master and agent
+    - "{{ zabbix.data_path }}/var/lib/zabbix/modules:/var/lib/zabbix/modules:ro"
+    - "{{ zabbix.data_path }}/var/lib/zabbix/enc:/var/lib/zabbix/enc:ro"
+    - "{{ zabbix.data_path }}/var/lib/zabbix/ssh_keys:/var/lib/zabbix/ssh_keys:ro"
+  web: |
+    [
+    {% for volume in zabbix.web.volumes %}
+      "{{ volume.name }}:{{ volume.mountpoint }}{% if volume.mode is defined %}:{{ volume.mode }}{% endif %}",
+    {% endfor %}
+    ]
+  web_old:
+    - "{{ zabbix.data_path }}/etc/ssl/nginx:/etc/ssl/nginx:ro"
