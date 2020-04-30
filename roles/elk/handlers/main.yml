@@ -1,0 +1,6 @@
+---
+- name: Restart LogStash Container
+  docker_container:
+    name: "{{ elk.logstash.name }}"
+    state: started
+    restart: true

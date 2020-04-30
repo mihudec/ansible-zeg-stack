@@ -21,6 +21,15 @@
   tags: 
     - firewall
 
+- name: Create ElasticSearch Volumes
+  include_tasks: volumes.yml
+  loop: 
+    - elasticsearch
+  loop_control:
+    loop_var: volume_set
+  tags:
+    - volumes
+
 - name: Set ElasticSearch to {{ container_state }}
   docker_container:
     name: "{{ elk.elasticsearch.name }}"
@@ -43,17 +52,82 @@
   expect:
     command: "docker exec -it {{ elk.elasticsearch.name }} elasticsearch-keystore add \"bootstrap.password\""
     responses: 
-      (?i)overwrite: "y"
-      (?i)value: "1234Qwer"
-  tags: elasticsearch
+      'Setting bootstrap\.password already exists\. Overwrite\? \[y\/N\]': 
+        - "y"
+      'Enter value for bootstrap\.password:': 
+        - "1234Qwer"
+    echo: true
+  no_log: false
+  when:
+    - firsttime is defined
+    - firsttime | bool
+  tags: 
+    - elasticsearch
+    - passwords
+
+- name: Restart ElasticSearch Container
+  docker_container:
+    name: "{{ elk.elasticsearch.name }}"
+    state: started
+    restart: true
+  when:
+    - firsttime is defined
+    - firsttime | bool
+  tags: 
+    - elasticsearch
 
 - name: Wait until ElasticSearch comes up
   uri:
-    url: "http://localhost:{{ elk.elasticsearch.ports[0].split(':')[0] }}"
+    url: "http://localhost:{{ elk.elasticsearch.ports[0].split(':')[0] }}/_security/_authenticate"
+    url_password: "1234Qwer"
+    url_username: elastic
   register: elasticsearch_uri_result
-  until: elasticsearch_uri_result == 200
+  until: elasticsearch_uri_result.status == 200
   retries: 10
   check_mode: false
+  when:
+    - firsttime is defined
+    - firsttime | bool
+  tags:
+    - elasticsearch
+
+- name: Setup ElasticSearch Password
+  uri:
+    url: http://localhost:9200/_security/user/elastic/_password
+    body_format: json
+    method: PUT
+    body:
+      password: "{{ elk.users.elastic.password }}"
+    url_password: "1234Qwer"
+    url_username: elastic
+  register: elastic_password_response
+  when:
+    - firsttime is defined
+    - firsttime | bool
+  tags:
+    - elasticsearch
+    - passwords
+
+
+- name: Setup Built-In Users Passwords
+  uri:
+    url: "http://localhost:9200/_security/user/{{ user }}/_password"
+    body_format: json
+    method: PUT
+    body:
+      password: "{{ password }}"
+    url_password: "{{ elk.users.elastic.password }}"
+    url_username: elastic
+  loop: "{{ elk.users | dict2items }}"
+  vars:
+    user: "{{ item.key }}"
+    password: "{{ item.value.password }}"
+  when:
+    - user != 'elastic'
+    - user in built_in_users
+  tags:
+    - elasticsearch
+    - passwords
 
 - name: Set Kibana to {{ container_state }}
   docker_container:
@@ -61,13 +135,109 @@
     hostname: "{{ elk.kibana.name }}"
     image: "{{ elk.kibana.image }}"
     state: "{{ container_state }}"
-    volumes: "{{ elk_volumes.elasticsearch }}"
+    #volumes: "{{ elk_volumes.elasticsearch }}"
     memory: "{{ elk.kibana.memory | default('1024M') }}"
     env: "{{ elk_env.kibana }}"
     purge_networks: true
     networks:
       - name: "{{ elk.network }}"
-        aliases: elasticsearch
+        aliases: kibana
     ports: "{{ elk.kibana.ports }}"
     restart_policy: unless-stopped
   tags: kibana
+
+- name: Create LogStash Volumes
+  include_tasks: volumes.yml
+  loop: 
+    - logstash
+  loop_control:
+    loop_var: volume_set
+  tags:
+    - logstash
+    - volumes
+
+- name: Set LogStash to {{ container_state }}
+  docker_container:
+    name: "{{ elk.logstash.name }}"
+    hostname: "{{ elk.logstash.name }}"
+    image: "{{ elk.logstash.image }}"
+    state: "{{ container_state }}"
+    volumes: "{{ elk_volumes.logstash }}"
+    memory: "{{ elk.logstash.memory | default('1024M') }}"
+    env: "{{ elk_env.logstash }}"
+    purge_networks: true
+    networks:
+      - name: "{{ elk.network }}"
+        aliases: logstash
+    ports: "{{ elk.logstash.ports }}"
+    restart_policy: unless-stopped
+  tags: 
+    - logstash
+
+- name: Create Roles and Users
+  include_tasks: users.yml
+  tags: 
+    - roles
+
+- name: Copy LogStash Custom Plugins
+  copy: 
+    src: logstash_plugins/
+    dest: "{{ elk.data_path }}/logstash_plugins/"
+  notify: Restart LogStash Container
+  tags: 
+    - logstash
+
+- name: Copy LogStash Pipeline Config
+  template: 
+    src: logstash/pipelines.yml 
+    dest: "{{ elk.data_path }}/logstash_config/pipelines.yml"
+  notify: Restart LogStash Container
+  tags: 
+    - logstash
+    - pipelines
+
+- name: Configure LogStash Pipelines
+  template:
+    src: "logstash/{{ item }}"
+    dest: "{{ elk.data_path }}/logstash_pipelines/{{ item }}"
+  loop:
+    - beats.conf
+    - cisco.conf
+    - syslog.conf
+  notify: Restart LogStash Container
+  tags:
+    - logstash
+    - pipelines
+
+- name: Create Config Directory
+  file:
+    path: "{{ elk.data_path }}/config"
+    state: directory
+    recurse: true
+  
+
+- name: Upload FileBeat Log Config
+  template:
+    src: filebeat/filebeat.yml
+    dest: "{{ elk.data_path }}/config/{{ filebeat_log_config }}"
+  tags:
+    - filebeat
+
+- name: Set Filebeat Log to {{ container_state }}
+  docker_container:
+    name: "{{ elk.filebeat_log.name }}"
+    hostname: "{{ elk.filebeat_log.name }}"
+    image: "{{ elk.filebeat_log.image }}"
+    state: "{{ container_state }}"
+    volumes:
+      - "{{ elk.data_path }}/config/{{ filebeat_log_config }}:/usr/share/filebeat/filebeat.yml:ro"
+      - "{{ elk.filebeat_log.log_folder }}:/logs:ro"
+    memory: "{{ elk.filebeat_log.memory | default('1024M') }}"
+    env: "{{ elk_env.filebeat_log }}"
+    purge_networks: true
+    networks:
+      - name: "{{ elk.network }}"
+        aliases: filebeat-log
+    restart_policy: unless-stopped
+  tags: 
+    - filebeat

@@ -1,0 +1,27 @@
+
+---
+- name: Create ELK {{ volume_set }} Volume Folders
+  file: 
+    path: "{{ elk.data_path }}/{{ item.name }}"
+    state: directory
+    recurse: true
+  loop: "{{ elk[volume_set].volumes }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: 
+    - volumes
+
+- name: Create ELK {{ volume_set }} Volumes
+  docker_volume:
+    name: "{{ item.name }}" 
+    driver: local
+    driver_options: 
+      type: none
+      device: "{{ elk.data_path }}/{{ item.name }}"
+      o: bind
+    state: present
+  loop: "{{ elk[volume_set].volumes }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: 
+    - volumes

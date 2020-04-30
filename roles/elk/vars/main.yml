@@ -1,6 +1,18 @@
 ---
 elasticsearch_image: docker.elastic.co/elasticsearch/elasticsearch:7.6.2
 kibana_image: docker.elastic.co/kibana/kibana:7.6.2
+logstash_image: docker.elastic.co/logstash/logstash:7.6.2
+filebeat_image: docker.elastic.co/beats/filebeat:7.6.2
+
+filebeat_log_config: "filebeat_log.yml"
+elk_cluster_uuid: "1MHacET-TLao_X0GjpvhQg"
+built_in_users:
+  - elastic
+  - kibana
+  - logstash_system
+  - beats_system
+  - apm_system
+  - remote_monitoring_user
 elk_env:
   elasticsearch:
    discovery.type: "single-node"
@@ -12,11 +24,43 @@ elk_env:
     SERVER_NAME: "{{ elk.kibana.name }}"
     XPACK_MONITORING_ENABLED: "true"
     ELASTICSEARCH_HOSTS: "http://{{ elk.elasticsearch.name }}:9200"
+    ELASTICSEARCH_USERNAME: kibana
+    ELASTICSEARCH_PASSWORD: "{{ elk.users.kibana.password }}"
   logstash:
+    xpack.monitoring.enabled: "true"
+    xpack.monitoring.elasticsearch.hosts: "http://{{ elk.elasticsearch.name }}:9200"
+    xpack.monitoring.elasticsearch.username: "logstash_system"
+    xpack.monitoring.elasticsearch.password: "{{ elk.users.logstash_system.password }}"
+  filebeat_log:
+    monitoring.enabled: "true"
+    monitoring.elasticsearch.hosts: "http://{{ elk.elasticsearch.name }}:9200"
+    monitoring.elasticsearch.username: "beats_system"
+    monitoring.elasticsearch.password: "{{ elk.users.beats_system.password }}"
+    monitoring.cluster_uuid: "1MHacET-TLao_X0GjpvhQg"
+    output.elasticsearch.enabled: "false"
+    output.logstash.hosts: "{{ elk.logstash.name }}:5044"
+    output.logstash.enabled: "true"
+    setup.kibana.host: "http://{{ elk.kibana.name }}:5601"
+
+
+
+
 elk_volumes:
   elasticsearch: | 
     [
     {% for volume in elk.elasticsearch.volumes %}
+      "{{ volume.name }}:{{ volume.mountpoint }}{% if volume.mode is defined %}:{{ volume.mode }}{% endif %}",
+    {% endfor %}
+    ]
+  logstash: | 
+    [
+    {% for volume in elk.logstash.volumes %}
+      "{{ volume.name }}:{{ volume.mountpoint }}{% if volume.mode is defined %}:{{ volume.mode }}{% endif %}",
+    {% endfor %}
+    ]
+  filebeat_log: |
+    [
+    {% for volume in elk.logstash.volumes %}
       "{{ volume.name }}:{{ volume.mountpoint }}{% if volume.mode is defined %}:{{ volume.mode }}{% endif %}",
     {% endfor %}
     ]

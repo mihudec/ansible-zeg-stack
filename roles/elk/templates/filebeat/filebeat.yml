@@ -1,0 +1,20 @@
+---
+filebeat.inputs:
+  - type: log
+    enabled: true
+    paths:
+      - /logs/**.log
+    tags:
+      - cisco
+
+output:
+  logstash:
+    enabled: true
+    hosts: "{{ elk.logstash.name }}:5044"
+monitoring:
+  enabled: true
+  cluster_uuid: "{{ elk_cluster_uuid }}"
+  elasticsearch:
+    hosts: "http://{{ elk.elasticsearch.name }}:9200"
+    username: beats_system
+    password: "{{ elk.users.beats_system.password }}"
