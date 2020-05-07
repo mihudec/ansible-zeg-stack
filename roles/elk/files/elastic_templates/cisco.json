@@ -1,0 +1,113 @@
+{
+    "order": 0,
+    "index_patterns": [
+        "cisco-*"
+    ],
+    "settings": {
+        "index": {
+            "number_of_shards": "1",
+            "number_of_replicas": "1"
+        }
+    },
+    "mappings": {
+        "_meta": {},
+        "_source": {},
+        "properties": {
+            "log": {
+                "type": "object",
+                "properties": {
+                    "syslog": {
+                        "type": "object",
+                        "properties": {
+                            "severity": {
+                                "type": "object",
+                                "properties": {
+                                    "code": {
+                                        "type": "integer"
+                                    },
+                                    "name": {
+                                        "type": "keyword",
+                                        "fields": {}
+                                    }
+                                }
+                            },
+                            "facility": {
+                                "type": "object",
+                                "properties": {
+                                    "sub": {
+                                        "type": "text",
+                                        "fields": {
+                                            "keyword": {
+                                                "ignore_above": 256,
+                                                "type": "keyword"
+                                            }
+                                        }
+                                    },
+                                    "mnemonic": {
+                                        "type": "text",
+                                        "fields": {
+                                            "keyword": {
+                                                "ignore_above": 256,
+                                                "type": "keyword"
+                                            }
+                                        }
+                                    },
+                                    "short": {
+                                        "type": "text",
+                                        "fields": {
+                                            "keyword": {
+                                                "ignore_above": 256,
+                                                "type": "keyword"
+                                            }
+                                        }
+                                    },
+                                    "full": {
+                                        "type": "text",
+                                        "fields": {}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "destination": {
+                "type": "object",
+                "properties": {
+                    "port": {
+                        "type": "integer"
+                    },
+                    "ip": {
+                        "type": "ip"
+                    }
+                }
+            },
+            "log_data": {
+                "type": "date"
+            },
+            "source": {
+                "type": "object",
+                "properties": {
+                    "port": {
+                        "type": "integer"
+                    },
+                    "ip": {
+                        "type": "ip"
+                    },
+                    "user": {
+                        "type": "text",
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword"
+                            }
+                        }
+                    }
+                }
+            },
+            "message": {
+                "type": "text"
+            }
+        }
+    },
+    "aliases": {}
+}

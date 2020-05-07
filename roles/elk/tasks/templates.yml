@@ -1,0 +1,17 @@
+---
+- name: Upload Cisco Index Template
+  uri:
+    url: "http://localhost:9200/_template/{{ item }}"
+    body_format: json
+    method: POST
+    body: "{{ lookup('file', 'elastic_templates/' + item + '.json') }}"
+    url_password: "{{ elk.users.elastic.password }}"
+    url_username: elastic
+  loop: 
+    - cisco
+  vars:
+    user: "{{ item.key }}"
+    password: "{{ item.value.password }}"
+  tags:
+    - elasticsearch
+    - templates

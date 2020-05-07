@@ -146,6 +146,12 @@
     restart_policy: unless-stopped
   tags: kibana
 
+- name: Configure Elastic Index Templates
+  include_tasks: templates.yml
+  tags: 
+    - elasticsearch
+    - templates
+
 - name: Create LogStash Volumes
   include_tasks: volumes.yml
   loop: 
@@ -178,6 +184,8 @@
   include_tasks: users.yml
   tags: 
     - roles
+
+
 
 - name: Copy LogStash Custom Plugins
   copy: 
