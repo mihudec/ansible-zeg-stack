@@ -22,6 +22,7 @@ elk_env:
    XPACK_MONITORING_ENABLED: "true"
   kibana:
     SERVER_NAME: "{{ elk.kibana.name }}"
+    SERVER_HOST: "0.0.0.0"
     XPACK_MONITORING_ENABLED: "true"
     ELASTICSEARCH_HOSTS: "http://{{ elk.elasticsearch.name }}:9200"
     ELASTICSEARCH_USERNAME: kibana
