@@ -175,7 +175,7 @@
     networks:
       - name: "{{ elk.network }}"
         aliases: logstash
-    ports: "{{ elk.logstash.ports }}"
+    ports: "{{ elk.logstash.ports | default(omit) }}"
     restart_policy: unless-stopped
   tags: 
     - logstash

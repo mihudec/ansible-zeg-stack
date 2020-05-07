@@ -26,8 +26,7 @@
                                         "type": "integer"
                                     },
                                     "name": {
-                                        "type": "keyword",
-                                        "fields": {}
+                                        "type": "keyword"
                                     }
                                 }
                             },
@@ -62,8 +61,7 @@
                                         }
                                     },
                                     "full": {
-                                        "type": "text",
-                                        "fields": {}
+                                        "type": "text"
                                     }
                                 }
                             }
@@ -95,10 +93,15 @@
                         "type": "ip"
                     },
                     "user": {
-                        "type": "text",
-                        "fields": {
-                            "keyword": {
-                                "type": "keyword"
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "text",
+                                "fields": {
+                                    "keyword": {
+                                        "type": "keyword"
+                                    }
+                                }
                             }
                         }
                     }
