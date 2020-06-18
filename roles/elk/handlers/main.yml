@@ -4,3 +4,15 @@
     name: "{{ elk.logstash.name }}"
     state: started
     restart: true
+
+- name: Restart FileBeat Log
+  docker_container:
+    name: "{{ elk.filebeat_log.name }}"
+    state: started
+    restart: true
+
+- name: Restart FileBeat NetFlow
+  docker_container:
+    name: "{{ elk.filebeat_netflow.name }}"
+    state: started
+    restart: true

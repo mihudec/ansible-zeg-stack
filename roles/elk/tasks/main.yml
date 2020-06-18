@@ -212,6 +212,7 @@
     - beats.conf
     - cisco.conf
     - syslog.conf
+    - epnm.conf
   notify: Restart LogStash Container
   tags:
     - logstash
@@ -231,6 +232,13 @@
   tags:
     - filebeat
 
+- name: Upload FileBeat Netflow Config
+  template:
+    src: filebeat/filebeat_netflow.yml
+    dest: "{{ elk.data_path }}/config/{{ filebeat_netflow_config }}"
+  tags:
+    - filebeat
+
 - name: Set Filebeat Log to {{ container_state }}
   docker_container:
     name: "{{ elk.filebeat_log.name }}"
@@ -239,13 +247,33 @@
     state: "{{ container_state }}"
     volumes:
       - "{{ elk.data_path }}/config/{{ filebeat_log_config }}:/usr/share/filebeat/filebeat.yml:ro"
-      - "{{ elk.filebeat_log.log_folder }}:/logs:ro"
+      - "{{ elk.filebeat_log.cisco_log_folder }}:/logs/cisco:ro"
+      - "{{ elk.filebeat_log.epnm_log_folder }}:/logs/epnm:ro"
     memory: "{{ elk.filebeat_log.memory | default('1024M') }}"
-    env: "{{ elk_env.filebeat_log }}"
     purge_networks: true
+    groups:
+      - adm
     networks:
       - name: "{{ elk.network }}"
         aliases: filebeat-log
+    restart_policy: unless-stopped
+  tags: 
+    - filebeat
+
+- name: Set Filebeat NetFlow to {{ container_state }}
+  docker_container:
+    name: "{{ elk.filebeat_netflow.name }}"
+    hostname: "{{ elk.filebeat_netflow.name }}"
+    image: "{{ elk.filebeat_netflow.image }}"
+    state: "{{ container_state }}"
+    volumes:
+      - "{{ elk.data_path }}/config/{{ filebeat_netflow_config }}:/usr/share/filebeat/filebeat.yml:ro"
+    memory: "{{ elk.filebeat_netflow.memory | default('1024M') }}"
+    purge_networks: true
+    networks:
+      - name: "{{ elk.network }}"
+        aliases: filebeat-netflow
+    ports: "{{ elk.filebeat_netflow.ports }}"
     restart_policy: unless-stopped
   tags: 
     - filebeat

@@ -1,0 +1,28 @@
+---
+filebeat.modules:
+  - module: netflow
+    log:
+      enabled: true
+      var:
+        netflow_host: "0.0.0.0"
+        netflow_port: 2055
+
+output:
+  elasticsearch:
+    hosts: "http://{{ elk.elasticsearch.name }}:9200"
+    username: filebeat
+    password: "{{ elk.users.filebeat.password }}"
+
+setup:
+  kibana:
+    host: "http://{{ elk.kibana.name }}:5601"
+    username: filebeat
+    password: "{{ elk.users.filebeat.password }}"
+
+monitoring:
+  enabled: true
+  cluster_uuid: "{{ elk_cluster_uuid }}"
+  elasticsearch:
+    hosts: "http://{{ elk.elasticsearch.name }}:9200"
+    username: beats_system
+    password: "{{ elk.users.beats_system.password }}"

@@ -1,0 +1,5 @@
+---
+- name: Restart Syslog-NG
+  systemd:
+    name: syslog-ng
+    state: restarted

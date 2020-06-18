@@ -30,7 +30,7 @@
   vars:
     user: "{{ item.key }}"
     password: "{{ item.value.password }}"
-    roles: "{{ item.value.roles }}"
+    roles: "{{ item.value.roles | default([])}}"
     full_name: "{{ item.value.full_name }}"
   loop_control:
     label: "{{ user }}"

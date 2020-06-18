@@ -7,3 +7,6 @@
 
 - pipeline.id: cisco
   path.config: "/usr/share/logstash/pipeline/cisco.conf"
+
+- pipeline.id: epnm
+  path.config: "/usr/share/logstash/pipeline/epnm.conf"

@@ -1,0 +1,37 @@
+- name: Enable EPEL
+  dnf:
+    pkg: epel-release
+    state: present
+
+- name: Install Syslog-NG
+  dnf:
+    pkg: syslog-ng
+    state: present
+
+- name: Enable and Start Syslog-NG
+  systemd:
+    name: syslog-ng
+    state: started
+    enabled: true
+
+- name: Enable Syslog ports in Firewalld
+  firewalld:
+    port: "{{ item }}"
+    state: enabled
+    permanent: true
+    immediate: true
+  loop:
+    - "514/udp"
+    - "514/tcp"
+
+- name: Copy Global Configuration File
+  template:
+    src: "syslog-ng.conf"
+    dest: "/etc/syslog-ng/syslog-ng.conf"
+  notify: "Restart Syslog-NG"
+
+- name: Copy Network Configuration File
+  template:
+    src: "network.conf"
+    dest: "/etc/syslog-ng/conf.d/network.conf"
+  notify: "Restart Syslog-NG"
